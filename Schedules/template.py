@@ -1,6 +1,6 @@
 import streamlit as st
 
-import rota
+import Schedules.rota as rota
 
 st.title("Work rotation schedule")
 st.caption("24-week cycle, then it repeats from week 1. Colours show who reports to which DOM.")

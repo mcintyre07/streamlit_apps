@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-import rota
+import Schedules.rota as rota
 
 st.title("Rotation by date")
 st.caption(
