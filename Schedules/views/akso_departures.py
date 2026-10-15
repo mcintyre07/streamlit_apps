@@ -17,22 +17,28 @@ SHIFT_TIMES = {
     "m": ["4:15", "4:30", "4:45", "5:00", "5:15", "5:30", "5:45", "6:00"],
     "e": ["12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30"],
 }
-OSL2_SHIFTS = 4  # on weekdays shifts 1-4 depart OSL2 and the rest depart AKSO
+OSL2_SHIFTS = 4  # on weekdays the first 4 working shifts depart OSL2, the rest AKSO
 
 # Days off for the two DTLs on weekend duty (0 = Monday ... 6 = Sunday).
 OFF_BEFORE_WEEKEND = {"m": (3, 4), "e": (2, 3)}  # morning Thu+Fri, evening Wed+Thu
 OFF_AFTER_WEEKEND = {"m": 2, "e": 1}             # following Wednesday / Tuesday
 
 
-def status(weekday, dtl, kind, pair_now, pair_prev):
-    """Departure for one DTL on one day: 'OSL2', 'AKSO', or None if they are off."""
+def departures(weekday, kind, pair_now, pair_prev):
+    """Departure for shifts 1-8 on one day: 'OSL2', 'AKSO', or None if the shift is off."""
     if weekday >= 5:  # weekend: only the weekend pair works, everything leaves OSL2
-        return "OSL2" if dtl in pair_now else None
-    if dtl in pair_now and weekday in OFF_BEFORE_WEEKEND[kind]:
-        return None
-    if dtl in pair_prev and weekday == OFF_AFTER_WEEKEND[kind]:
-        return None
-    return "OSL2" if dtl <= OSL2_SHIFTS else "AKSO"
+        return {n: ("OSL2" if n in pair_now else None) for n in range(1, 9)}
+    working = []
+    for n in range(1, 9):
+        off_before = n in pair_now and weekday in OFF_BEFORE_WEEKEND[kind]
+        off_after = n in pair_prev and weekday == OFF_AFTER_WEEKEND[kind]
+        if not (off_before or off_after):
+            working.append(n)
+    first = set(working[:OSL2_SHIFTS])  # the first 4 shifts that are working leave OSL2
+    return {
+        n: (None if n not in working else ("OSL2" if n in first else "AKSO"))
+        for n in range(1, 9)
+    }
 
 
 def cell(location):
@@ -45,11 +51,7 @@ def cell(location):
 def table_html(kind, body):
     heads = ""
     for n in range(1, 9):
-        color = LOCATION_COLORS["OSL2" if n <= OSL2_SHIFTS else "AKSO"]
-        heads += (
-            f'<th style="background:{color};color:{rota.text_on(color)}">'
-            f"DTL {n}<br>{SHIFT_TIMES[kind][n - 1]}</th>"
-        )
+        heads += f"<th>DTL {n}<br>{SHIFT_TIMES[kind][n - 1]}</th>"
     return (
         '<table class="rot dep"><thead><tr><th>Week</th><th>Date</th>'
         + heads
@@ -76,8 +78,8 @@ EXTRA_CSS = (
 # ---------------------------------------------------------------- header
 st.title("AKSO Departures")
 st.caption(
-    "Where each shift departs from. Weekdays: shifts 1–4 leave from OSL2 and shifts 5–8 "
-    "from AKSO. Weekends: everything leaves from OSL2."
+    "Where each shift departs from. Weekdays: the first 4 shifts working that day leave from "
+    "OSL2 and the remaining shifts leave from AKSO. Weekends: everything leaves from OSL2."
 )
 
 legend = "".join(
@@ -131,7 +133,8 @@ while monday <= range_end:
             label = f"{day.strftime('%a')} {day.day} {day.strftime('%b')}"
             wk_cell = f'<td class="wk" rowspan="7">{iso_week}</td>' if wd == 0 else ""
             for kind in rows:
-                cells = "".join(cell(status(wd, n, kind, pair_now, pair_prev)) for n in range(1, 9))
+                deps = departures(wd, kind, pair_now, pair_prev)
+                cells = "".join(cell(deps[n]) for n in range(1, 9))
                 rows[kind].append(
                     f'<tr class="{"wkstart" if wd == 0 else ""}">{wk_cell}'
                     f'<td class="{date_cls}">{label}</td>{cells}</tr>'
