@@ -126,8 +126,52 @@ class Highlighter:
         )
 
 
+def button_css(prefix):
+    """Colour each highlight button like its chip in the schedule.
+
+    DOM buttons use DOM_COLORS. DTL buttons are split: morning colour on the
+    left half, evening colour on the right half. Needs Streamlit 1.39+, which
+    gives every keyed widget an `st-key-<key>` class to aim the CSS at.
+    """
+    def label_color(c1, c2=None):
+        if c2 is None or c1 == c2:
+            return c1, text_on(c1)
+        same = text_on(c1) == text_on(c2)
+        return f"linear-gradient(90deg,{c1} 50%,{c2} 50%)", text_on(c1) if same else "#1D2433"
+
+    rules = [
+        ".st-key-{k} [role=radiogroup]{{gap:6px 4px}}"
+        ".st-key-{k} [role=radiogroup]>label{{padding:3px 10px;border-radius:8px;"
+        "border:2px solid transparent;margin-right:0}}"
+        ".st-key-{k} [role=radiogroup]>label:has(input:checked){{border-color:currentColor;"
+        "font-weight:700}}"
+        .format(k=f"{prefix}_dom"),
+        ".st-key-{k} [role=radiogroup]>label{{padding:3px 10px;border-radius:8px;"
+        "border:2px solid transparent;margin-right:0}}"
+        ".st-key-{k} [role=radiogroup]>label:has(input:checked){{border-color:currentColor;"
+        "font-weight:700}}"
+        .format(k=f"{prefix}_dtl"),
+    ]
+    for i in range(1, 7):
+        bg, fg = label_color(DOM_COLORS[i])
+        rules.append(
+            f".st-key-{prefix}_dom [role=radiogroup]>label:nth-child({i + 1})"
+            f"{{background:{bg};color:{fg}!important}}"
+            f".st-key-{prefix}_dom [role=radiogroup]>label:nth-child({i + 1}) *{{color:{fg}!important}}"
+        )
+    for i in range(1, 9):
+        bg, fg = label_color(DTL_MORNING_COLORS[i], DTL_EVENING_COLORS[i])
+        rules.append(
+            f".st-key-{prefix}_dtl [role=radiogroup]>label:nth-child({i + 1})"
+            f"{{background:{bg};color:{fg}!important}}"
+            f".st-key-{prefix}_dtl [role=radiogroup]>label:nth-child({i + 1}) *{{color:{fg}!important}}"
+        )
+    return "<style>" + "".join(rules) + "</style>"
+
+
 def highlight_controls(prefix):
     """Draw the DOM / DTL highlight buttons and return a Highlighter."""
+    st.markdown(button_css(prefix), unsafe_allow_html=True)
     dom_choice = st.radio(
         "Highlight DOM team (DOM and the DTLs who report to them)",
         ["All"] + [f"DOM {i}" for i in range(1, 7)],
